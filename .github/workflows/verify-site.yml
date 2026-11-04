@@ -1,0 +1,35 @@
+name: Verify rendered site
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+          bundler-cache: true
+      - name: Install UglifyJS and minify JavaScript
+        run: |
+          npm install -g uglify-js
+          uglifyjs assets/js/plugins/jquery.greedy-navigation.js assets/js/_main.js assets/js/theme.js -c -m -o assets/js/main.min.js
+      - name: Build site
+        run: bundle exec jekyll build
+        env:
+          JEKYLL_ENV: production
+      - name: Print rendered about and publications pages
+        run: |
+          python3 - <<'PY'
+          import html, re, pathlib
+          for path in [pathlib.Path('_site/index.html'), pathlib.Path('_site/publications/index.html')]:
+              print('\n=== ' + str(path) + ' ===')
+              text = path.read_text()
+              text = re.sub(r'<script.*?</script>', '', text, flags=re.S)
+              text = re.sub(r'<style.*?</style>', '', text, flags=re.S)
+              text = re.sub(r'<[^>]+>', '\n', text)
+              text = html.unescape(text)
+              print('\n'.join(line.strip() for line in text.splitlines() if line.strip()))
+          PY
